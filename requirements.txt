@@ -3,3 +3,4 @@ python-telegram-bot==20.7
 requests==2.31.0
 telethon==1.33.1
 pyrogram==2.0.106
+openai==1.7.1

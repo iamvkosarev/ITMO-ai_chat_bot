@@ -3,8 +3,11 @@ from telethon import TelegramClient, events, sync
 from pyrogram import Client, filters
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
+from openai import OpenAI, AsyncOpenAI
+import asyncio
 
 
+CHAT_GPT_ENV_KEY = 'CHATBOT_CHAT_GPT'
 TELEGRAM_ENV_KEY = 'CHATBOT_TELEGRAM'
 APP_ID_ENV_KEY = 'CHATBOT_APP_ID'
 APP_HASH_ENV_KEY = 'CHATBOT_APP_HASH'
@@ -69,21 +72,61 @@ async def client_main():
 
 
 if __name__ == '__main__':
+    ai_client = AsyncOpenAI(api_key=os.getenv(CHAT_GPT_ENV_KEY))
     client = TelegramClient("my_account", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY), device_model='Python Bot Desktop', system_version ='Windows 10')
 
-@client.on(events.NewMessage(outgoing=True))
-async def handler(event):
-    chat = await event.get_chat()
-    me = await client.get_me()
-    if me.username == chat.username:
-        print("Сообщение от меня")
-    await client.send_message(chat, "Hello!")
+# @client.on(events.NewMessage(outgoing=True))
+# async def handler(event):
+#     chat = await event.get_chat()
+#     me = await client.get_me()
+#     if me.username == chat.username:
+#         await client.send_message(chat, await message('base', event.text))
 
-@client.on(events.NewMessage(pattern="ок"))
+@client.on(events.NewMessage())
 async def handler(event):
     chat = await event.get_chat()
-    await client.send_message(chat, "Ты о чём?")
+    text = event.text
+    if text.startswith("/bot"):
+        text = text[5:]
+        await client.send_message(chat, await message(chat.username, text))
+
+CHAT_HISTORY = {}
+
+async def message(chat_id, user_prompt) -> None:
+    if chat_id not in CHAT_HISTORY:
+        CHAT_HISTORY[chat_id] = []
+
+    CHAT_HISTORY[chat_id].append({"role": "user", "content": user_prompt})
+
+    chat_completion = await ai_client.chat.completions.create(
+        messages=CHAT_HISTORY[chat_id],
+        model="gpt-3.5-turbo",
+    )
+
+    chat_response = chat_completion.choices[0].message.content
+    CHAT_HISTORY[chat_id].append({"role": "assistant", "content": chat_response})
+
+    return chat_response
+
+def color_text(text, color):
+    r, g, b = color
+    return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+
+class color():
+    GREEN = (0, 200, 0)
+    YELLOW = (200, 200, 0)
+    ORANGE = (255, 110, 20)
+    RED = (200, 0, 0)
+    DARK_RED = (100, 0, 0),
+    BLACK = (0, 0, 0)
+
+async def main():
+    while(True):
+            prompt = input(color_text("Вы: ", color.BLACK))
+            print(color_text(f"GPT: {await message('base', prompt)}", color.GREEN))
 
 if __name__ == '__main__':
+    #asyncio.run(main())
     client.start()
     client.run_until_disconnected()
+
