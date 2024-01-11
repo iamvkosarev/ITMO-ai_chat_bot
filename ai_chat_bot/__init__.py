@@ -75,28 +75,46 @@ if __name__ == '__main__':
     ai_client = AsyncOpenAI(api_key=os.getenv(CHAT_GPT_ENV_KEY))
     client = TelegramClient("my_account", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY), device_model='Python Bot Desktop', system_version ='Windows 10')
 
-# @client.on(events.NewMessage(outgoing=True))
-# async def handler(event):
-#     chat = await event.get_chat()
-#     me = await client.get_me()
-#     if me.username == chat.username:
-#         await client.send_message(chat, await message('base', event.text))
+WORKING_CHATS = []
+
+@client.on(events.NewMessage(outgoing=True, pattern="/bot_off"))
+async def handler(event):
+    chat = await event.get_chat()
+    username = chat.username
+    if username in WORKING_CHATS:
+        WORKING_CHATS.remove(username)
+    show_chats()
+
+@client.on(events.NewMessage(outgoing=True, pattern="/bot_on"))
+async def handler(event):
+    chat = await event.get_chat()
+    username = chat.username
+    if username not in WORKING_CHATS:
+        WORKING_CHATS.append(username)
+    show_chats()
+    # if me.username == chat.username:
+    #     await client.send_message(chat, await message('base', event.text))
+
+def show_chats():
+    print("Рабочие чаты:",', '.join(WORKING_CHATS))
 
 @client.on(events.NewMessage())
 async def handler(event):
     chat = await event.get_chat()
+    username = chat.username
     text = event.text
-    if text.startswith("/bot"):
-        text = text[5:]
+    if text == "/bot_on" or text == "/bot_off": return
+    if username in WORKING_CHATS:
         await client.send_message(chat, await message(chat.username, text))
 
 CHAT_HISTORY = {}
+WORKING_CHATS = []
 
 async def message(chat_id, user_prompt) -> None:
     if chat_id not in CHAT_HISTORY:
         CHAT_HISTORY[chat_id] = []
 
-    CHAT_HISTORY[chat_id].append({"role": "user", "content": user_prompt})
+    CHAT_HISTORY[chat_id].append({"role": "user", "content": 'Ответь на сообщение, но не больше 100 слов, однако пиши, много, когда можно ответить кратко:\n'+user_prompt})
 
     chat_completion = await ai_client.chat.completions.create(
         messages=CHAT_HISTORY[chat_id],
