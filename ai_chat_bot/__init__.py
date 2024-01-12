@@ -1,5 +1,5 @@
 from telegram import Update
-from telethon import TelegramClient, events, sync
+from telethon import TelegramClient, events, sync, Button,custom
 from pyrogram import Client, filters
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import os
@@ -73,7 +73,8 @@ async def client_main():
 
 if __name__ == '__main__':
     ai_client = AsyncOpenAI(api_key=os.getenv(CHAT_GPT_ENV_KEY))
-    client = TelegramClient("my_account", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY), device_model='Python Bot Desktop', system_version ='Windows 10')
+    client_bot = TelegramClient("bot_session", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY), device_model='Python Bot Desktop', system_version ='Windows 10')
+    client = TelegramClient("my_account", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY), device_model='Python Client Desktop', system_version ='Windows 10').start()
 
 WORKING_CHATS = []
 
@@ -84,7 +85,137 @@ async def handler(event):
     if username in WORKING_CHATS:
         WORKING_CHATS.remove(username)
     show_chats()
-    await  client.edit_message(chat, event.id, "__Бот выключен__")
+    await client.edit_message(chat, event.id, "__Бот выключен__")
+
+bot_select_messages = []
+
+@client_bot.on(events.NewMessage(pattern="/bot"))
+async def handler(event):
+    await load_main_buttons(event)
+
+@client_bot.on(events.CallbackQuery(pattern="load_main_buttons"))
+async def load_main_buttons(event):
+    chat = await event.get_chat()
+    if len(available_chats) == 0:
+        await load_available_chats()
+    await delete_messages(chat)
+    keyboard = [
+        [  
+            Button.inline("Запустить бота", "on_select_chat"), 
+            Button.inline("Выключить бота", "off_select_chat"), 
+        ]
+    ]
+    message = await client_bot.send_message(chat, "Действие", buttons=keyboard)
+    bot_select_messages.append(message.id)
+
+async def delete_messages(chat):
+    await client_bot.delete_messages(chat, bot_select_messages)
+
+MAX_SHOW_DIALOGS = 5
+available_chats = []
+
+@client_bot.on(events.CallbackQuery(pattern="on_select_chat"))
+async def call_handler(event):
+    global selcted_group
+    selcted_group = 0
+    global box_on
+    box_on = True
+    chat = await event.get_chat()
+    await delete_messages(chat)
+    count = -1
+    keyboard = [
+    ]
+    next_previouse = [  
+            Button.inline("Прошлые", "select_previouse"), 
+            Button.inline("Меню", "load_main_buttons"), 
+            Button.inline("Следующие", "select_next"),
+        ]
+    for i in range(MAX_SHOW_DIALOGS):
+        keyboard.append([Button.inline(available_chats[i+MAX_SHOW_DIALOGS*selcted_group], "select_"+str(count))])
+    keyboard.append(next_previouse)
+    message = await send_buttons(chat, keyboard)
+    bot_select_messages.append(message.id)
+
+
+MAX_CHECK_CAHTS = 50
+async def load_available_chats():
+    count = 0
+    async for dialog in client.iter_dialogs():
+       available_chats.append(dialog.name)
+       count += 1
+       if count == MAX_CHECK_CAHTS:
+           return   
+            
+
+@client_bot.on(events.CallbackQuery(pattern="off_select_chat"))
+async def call_handler(event):
+    selcted_group = 0
+    global box_on
+    box_on = False
+    chat = await event.get_chat()
+    await delete_messages(chat)
+    count = -1
+    keyboard = [
+    ]
+    next_previouse = [  
+            Button.inline("Прошлые", "select_previouse"), 
+            Button.inline("Меню", "load_main_buttons"), 
+            Button.inline("Следующие", "select_next"),
+        ]
+    for i in range(MAX_SHOW_DIALOGS):
+        keyboard.append([Button.inline(available_chats[i+MAX_SHOW_DIALOGS*selcted_group], "select_"+str(count))])
+    keyboard.append(next_previouse)
+    message = await send_buttons(chat, keyboard)
+    bot_select_messages.append(message.id)
+
+@client_bot.on(events.CallbackQuery(pattern="select_previouse"))
+async def call_handler(event):
+    global selcted_group
+    if selcted_group != 0:
+        selcted_group -= 1
+    chat = await event.get_chat()
+    await delete_messages(chat)
+    count = -1
+    keyboard = [
+    ]
+    next_previouse = [  
+            Button.inline("Прошлые", "select_previouse"), 
+            Button.inline("Меню", "load_main_buttons"), 
+            Button.inline("Следующие", "select_next"),
+        ]
+    for i in range(MAX_SHOW_DIALOGS):
+        keyboard.append([Button.inline(available_chats[i+MAX_SHOW_DIALOGS*selcted_group], "select_"+str(count))])
+    keyboard.append(next_previouse)
+    message = await send_buttons(chat, keyboard)
+    bot_select_messages.append(message.id)
+
+@client_bot.on(events.CallbackQuery(pattern="select_next"))
+async def call_handler(event):
+    global selcted_group
+    if (selcted_group + 1) * MAX_SHOW_DIALOGS < MAX_CHECK_CAHTS:
+        selcted_group += 1
+    chat = await event.get_chat()
+    await delete_messages(chat)
+    count = -1
+    keyboard = [
+    ]
+    next_previouse = [  
+            Button.inline("Прошлые", "select_previouse"), 
+            Button.inline("Меню", "load_main_buttons"), 
+            Button.inline("Следующие", "select_next"),
+        ]
+    for i in range(MAX_SHOW_DIALOGS):
+        keyboard.append([Button.inline(available_chats[i+MAX_SHOW_DIALOGS*selcted_group], "select_"+str(count))])
+    keyboard.append(next_previouse)
+    message = await send_buttons(chat, keyboard)
+    bot_select_messages.append(message.id)
+
+async def send_buttons(chat, keyboard):
+    global box_on
+    if box_on:
+        return await client_bot.send_message(chat, f"({selcted_group}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Активировать бота в...", buttons=keyboard)
+    else:
+        return await client_bot.send_message(chat, f"({selcted_group}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Деактивировать бота в...", buttons=keyboard)
 
 @client.on(events.NewMessage(outgoing=True, pattern="/bot_on"))
 async def handler(event):
@@ -152,7 +283,9 @@ async def main():
             print(color_text(f"GPT: {await send_to_gpt('base', prompt)}", color.GREEN))
 
 if __name__ == '__main__':
-    #asyncio.run(main())
+    client_bot.start(bot_token=os.getenv(TELEGRAM_ENV_KEY))
     client.start()
+    client_bot.run_until_disconnected()
     client.run_until_disconnected()
+    
 
