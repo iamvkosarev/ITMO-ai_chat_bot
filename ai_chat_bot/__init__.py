@@ -213,9 +213,9 @@ async def call_handler(event):
 async def send_buttons(chat, keyboard):
     global box_on
     if box_on:
-        return await client_bot.send_message(chat, f"({selcted_group}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Активировать бота в...", buttons=keyboard)
+        return await client_bot.send_message(chat, f"({selcted_group+1}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Активировать бота в...", buttons=keyboard)
     else:
-        return await client_bot.send_message(chat, f"({selcted_group}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Деактивировать бота в...", buttons=keyboard)
+        return await client_bot.send_message(chat, f"({selcted_group+1}/{int(MAX_CHECK_CAHTS/MAX_SHOW_DIALOGS)}) Деактивировать бота в...", buttons=keyboard)
 
 @client.on(events.NewMessage(outgoing=True, pattern="/bot_on"))
 async def handler(event):
