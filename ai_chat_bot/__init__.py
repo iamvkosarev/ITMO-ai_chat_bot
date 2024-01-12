@@ -84,6 +84,7 @@ async def handler(event):
     if username in WORKING_CHATS:
         WORKING_CHATS.remove(username)
     show_chats()
+    await  client.edit_message(chat, event.id, "__Бот выключен__")
 
 @client.on(events.NewMessage(outgoing=True, pattern="/bot_on"))
 async def handler(event):
@@ -92,6 +93,7 @@ async def handler(event):
     if username not in WORKING_CHATS:
         WORKING_CHATS.append(username)
     show_chats()
+    await client.edit_message(chat, event.id, "__Бот включен. Можно с ним пообщаться__")
     # if me.username == chat.username:
     #     await client.send_message(chat, await message('base', event.text))
 
@@ -103,14 +105,17 @@ async def handler(event):
     chat = await event.get_chat()
     username = chat.username
     text = event.text
-    if text == "/bot_on" or text == "/bot_off": return
+    if text == "/bot_on" or text == "/bot_off":
+        if  text == "/bot_off" and username in WORKING_CHATS:
+            WORKING_CHATS.remove(username)
+        return
     if username in WORKING_CHATS:
-        await client.send_message(chat, await message(chat.username, text))
+        await message_telegram(chat, "__Бот:__\n"+await send_to_gpt(chat.username, text))
 
 CHAT_HISTORY = {}
 WORKING_CHATS = []
 
-async def message(chat_id, user_prompt) -> None:
+async def send_to_gpt(chat_id, user_prompt) -> None:
     if chat_id not in CHAT_HISTORY:
         CHAT_HISTORY[chat_id] = []
 
@@ -125,6 +130,9 @@ async def message(chat_id, user_prompt) -> None:
     CHAT_HISTORY[chat_id].append({"role": "assistant", "content": chat_response})
 
     return chat_response
+
+async def message_telegram(chat, message):
+    await client.send_message(chat, message)
 
 def color_text(text, color):
     r, g, b = color
@@ -141,7 +149,7 @@ class color():
 async def main():
     while(True):
             prompt = input(color_text("Вы: ", color.BLACK))
-            print(color_text(f"GPT: {await message('base', prompt)}", color.GREEN))
+            print(color_text(f"GPT: {await send_to_gpt('base', prompt)}", color.GREEN))
 
 if __name__ == '__main__':
     #asyncio.run(main())
