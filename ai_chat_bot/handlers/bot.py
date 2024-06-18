@@ -1,4 +1,5 @@
 from telethon import events, Button
+import re
 
 MAX_SHOW_DIALOGS = 5
 MAX_CHECK_CAHTS = 50
@@ -40,6 +41,24 @@ class Bot:
             return await send_buttons_int(DEACTIVATE_PHRASE)
 
 
+    async def show_chats(self,event):
+        chat = await event.get_chat()
+        await self.delete_messages(chat)
+        count = 0
+        keyboard = []
+        next_previouse = [
+            Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
+            Button.inline(MENU_TEXT, MENU_PATTERN),
+            Button.inline(NEXT_TEXT, NEXT_PATTERN),
+        ]
+        for i in range(MAX_SHOW_DIALOGS):
+            keyboard.append(
+                [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
+                               "select_" + str(count))])
+            count += 1
+        keyboard.append(next_previouse)
+        message = await self.send_buttons(chat, keyboard)
+        self.bot_select_messages.append(message.id)
 
     async def load_available_chats(self):
         count = 0
@@ -71,83 +90,34 @@ class Bot:
 
         @self.telegram_bot.on(events.CallbackQuery(pattern="on_select_chat"))
         async def call_handler(event):
-            self.selected_group = 0
             self.box_on = True
-            chat = await event.get_chat()
-            await self.delete_messages(chat)
-            count = -1
-            keyboard = []
-            next_previouse = [
-                Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
-                Button.inline(MENU_TEXT, MENU_PATTERN),
-                Button.inline(NEXT_TEXT, NEXT_PATTERN),
-            ]
-            for i in range(MAX_SHOW_DIALOGS):
-                keyboard.append(
-                    [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
-                                   "select_" + str(count))])
-            keyboard.append(next_previouse)
-            message = await self.send_buttons(chat, keyboard)
-            self.bot_select_messages.append(message.id)
+            self.selected_group = 0
+            await self.show_chats(event)
 
         @self.telegram_bot.on(events.CallbackQuery(pattern="off_select_chat"))
         async def call_handler(event):
-            self.selected_group = 0
             self.box_on = False
-            chat = await event.get_chat()
-            await self.delete_messages(chat)
-            count = -1
-            keyboard = []
-            next_previouse = [
-                Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
-                Button.inline(MENU_TEXT, MENU_PATTERN),
-                Button.inline(NEXT_TEXT, NEXT_PATTERN),
-            ]
-            for i in range(MAX_SHOW_DIALOGS):
-                keyboard.append(
-                    [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
-                                   "select_" + str(count))])
-            keyboard.append(next_previouse)
-            message = await self.send_buttons(chat, keyboard)
-            self.bot_select_messages.append(message.id)
+            self.selected_group = 0
+            await self.show_chats(event)
+
 
         @self.telegram_bot.on(events.CallbackQuery(pattern=PREVIOUS_PATTERN))
         async def call_handler(event):
             if self.selected_group != 0:
                 self.selected_group -= 1
-            chat = await event.get_chat()
-            await self.delete_messages(chat)
-            count = -1
-            keyboard = []
-            next_previouse = [
-                Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
-                Button.inline(MENU_TEXT, MENU_PATTERN),
-                Button.inline(NEXT_TEXT, NEXT_PATTERN),
-            ]
-            for i in range(MAX_SHOW_DIALOGS):
-                keyboard.append(
-                    [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
-                                   "select_" + str(count))])
-            keyboard.append(next_previouse)
-            message = await self.send_buttons(chat, keyboard)
-            self.bot_select_messages.append(message.id)
+            await self.show_chats(event)
 
         @self.telegram_bot.on(events.CallbackQuery(pattern=NEXT_PATTERN))
         async def call_handler(event):
             if (self.selected_group + 1) * MAX_SHOW_DIALOGS < MAX_CHECK_CAHTS:
                 self.selected_group += 1
-            chat = await event.get_chat()
-            await self.delete_messages(chat)
-            count = -1
-            keyboard = []
-            next_previouse = [
-                Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
-                Button.inline(MENU_TEXT, MENU_PATTERN),
-                Button.inline(NEXT_TEXT, NEXT_PATTERN),
-            ]
-            for i in range(MAX_SHOW_DIALOGS):
-                keyboard.append([Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
-                                               "select_" + str(count))])
-            keyboard.append(next_previouse)
-            message = await self.send_buttons(chat, keyboard)
-            self.bot_select_messages.append(message.id)
+            await self.show_chats(event)
+
+        @self.telegram_bot.on(events.CallbackQuery(pattern=re.compile(r"select_(\d+)")))
+        async def select_handler(event):
+            match = event.pattern_match
+            if match:
+                index = int(match.group(1))
+                print(f"Selected: {index}")
+
+
