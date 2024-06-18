@@ -23,51 +23,6 @@ class Bot:
         self.selected_group = 0
         self.box_on = False
 
-    async def delete_messages(self, chat):
-        await self.telegram_bot.delete_messages(chat, self.bot_select_messages)
-
-    async def send_buttons(self, chat, keyboard):
-        ACTIVATE_PHRASE = "Активировать бота в..."
-        DEACTIVATE_PHRASE = "Деактивировать бота в..."
-
-        async def send_buttons_int(phrase):
-            return await self.telegram_bot.send_message(chat,
-                                                        f"({self.selected_group + 1}/{int(MAX_CHECK_CAHTS / MAX_SHOW_DIALOGS)}) {phrase}",
-                                                        buttons=keyboard)
-
-        if self.box_on:
-            return await send_buttons_int(ACTIVATE_PHRASE)
-        else:
-            return await send_buttons_int(DEACTIVATE_PHRASE)
-
-
-    async def show_chats(self,event):
-        chat = await event.get_chat()
-        await self.delete_messages(chat)
-        count = 0
-        keyboard = []
-        next_previouse = [
-            Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
-            Button.inline(MENU_TEXT, MENU_PATTERN),
-            Button.inline(NEXT_TEXT, NEXT_PATTERN),
-        ]
-        for i in range(MAX_SHOW_DIALOGS):
-            keyboard.append(
-                [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
-                               "select_" + str(count))])
-            count += 1
-        keyboard.append(next_previouse)
-        message = await self.send_buttons(chat, keyboard)
-        self.bot_select_messages.append(message.id)
-
-    async def load_available_chats(self):
-        count = 0
-        async for dialog in self.telegram_client.iter_dialogs():
-            self.available_chats.append(dialog.name)
-            count += 1
-            if count == MAX_CHECK_CAHTS:
-                return
-
     def register_handlers(self):
         @self.telegram_bot.on(events.NewMessage(pattern="/bot"))
         async def handler(event):
@@ -119,5 +74,52 @@ class Bot:
             if match:
                 index = int(match.group(1))
                 print(f"Selected: {index}")
+
+    async def delete_messages(self, chat):
+        await self.telegram_bot.delete_messages(chat, self.bot_select_messages)
+
+    async def send_buttons(self, chat, keyboard):
+        ACTIVATE_PHRASE = "Активировать бота в..."
+        DEACTIVATE_PHRASE = "Деактивировать бота в..."
+
+        async def send_buttons_int(phrase):
+            return await self.telegram_bot.send_message(chat,
+                                                        f"({self.selected_group + 1}/{int(MAX_CHECK_CAHTS / MAX_SHOW_DIALOGS)}) {phrase}",
+                                                        buttons=keyboard)
+
+        if self.box_on:
+            return await send_buttons_int(ACTIVATE_PHRASE)
+        else:
+            return await send_buttons_int(DEACTIVATE_PHRASE)
+
+
+    async def show_chats(self,event):
+        chat = await event.get_chat()
+        await self.delete_messages(chat)
+        count = 0
+        keyboard = []
+        next_previouse = [
+            Button.inline(PREVIOUS_TEXT, PREVIOUS_PATTERN),
+            Button.inline(MENU_TEXT, MENU_PATTERN),
+            Button.inline(NEXT_TEXT, NEXT_PATTERN),
+        ]
+        for i in range(MAX_SHOW_DIALOGS):
+            keyboard.append(
+                [Button.inline(self.available_chats[i + MAX_SHOW_DIALOGS * self.selected_group],
+                               "select_" + str(count))])
+            count += 1
+        keyboard.append(next_previouse)
+        message = await self.send_buttons(chat, keyboard)
+        self.bot_select_messages.append(message.id)
+
+    async def load_available_chats(self):
+        count = 0
+        async for dialog in self.telegram_client.iter_dialogs():
+            self.available_chats.append(dialog.name)
+            count += 1
+            if count == MAX_CHECK_CAHTS:
+                return
+
+
 
 
