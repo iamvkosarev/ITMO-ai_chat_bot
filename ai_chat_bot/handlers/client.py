@@ -1,12 +1,16 @@
-from telethon import events
+import typing
+
+from telethon import events, TelegramClient
+from telegram import Chat
 
 
 class Client:
-    def __init__(self, telegram_client, telegram_bot, ai_client):
-        self.telegram_client = telegram_client
-        self.telegram_bot = telegram_bot
+    def __init__(self, telegram_client, telegram_bot, ai_client, show_bot_message):
+        self.show_bot_message = show_bot_message
+        self.telegram_client: TelegramClient = telegram_client
+        self.telegram_bot: TelegramClient = telegram_bot
         self.ai_client = ai_client
-        self.working_chats = []
+        self.working_chats: typing.List[int] = []
         self.chat_history = {}
 
     async def send_to_gpt(self, chat_id, user_prompt) -> str:
@@ -26,39 +30,60 @@ class Client:
 
         return chat_response
 
-    async def client_send_message(self, chat, message):
+    def switch_show_bot_text(self, mode: bool):
+        self.show_bot_message = mode
+    async def _client_send_message(self, chat, message):
         await self.telegram_client.send_message(chat, message)
+
+    def switch_bot(self, mode, id: int):
+        def show_chats():
+            print("Рабочие чаты:", ', '.join(str(id) for id in self.working_chats))
+
+        if mode:
+            if id not in self.working_chats:
+                self.working_chats.append(id)
+        else:
+            if id in self.working_chats:
+                self.working_chats.remove(id)
+
+        show_chats()
 
     def register_handlers(self):
         @self.telegram_client.on(events.NewMessage(outgoing=True, pattern="/bot_off"))
         async def handler(event):
-            chat = await event.get_chat()
-            username = chat.username
-            if username in self.working_chats:
-                self.working_chats.remove(username)
-            show_chats()
+            chat: Chat = await event.get_chat()
+            self.switch_bot(False, chat.id)
             await self.telegram_client.edit_message(chat, event.id, "__Бот выключен__")
-
-        def show_chats():
-            print("Рабочие чаты:", ', '.join(self.working_chats))
 
         @self.telegram_client.on(events.NewMessage(outgoing=True, pattern="/bot_on"))
         async def handler(event):
-            chat = await event.get_chat()
-            username = chat.username
-            if username not in self.working_chats:
-                self.working_chats.append(username)
-            show_chats()
+            chat: Chat = await event.get_chat()
+            self.switch_bot(True, chat.id)
             await self.telegram_client.edit_message(chat, event.id, "__Бот включен. Можно с ним пообщаться__")
 
         @self.telegram_client.on(events.NewMessage())
         async def handler(event):
-            chat = await event.get_chat()
-            username = chat.username
+            chat: Chat = await event.get_chat()
+            id = chat.id
             text = event.text
             if text == "/bot_on" or text == "/bot_off":
-                if text == "/bot_off" and username in self.working_chats:
-                    self.working_chats.remove(username)
+                if text == "/bot_off" and id in self.working_chats:
+                    self.working_chats.remove(id)
                 return
-            if username in self.working_chats:
-                await self.client_send_message(chat, "__Бот:__\n" + await send_to_gpt(chat.username, text))
+            if id in self.working_chats:
+                await self._client_send_message(chat, self._get_bot_phrase() + await self.send_to_gpt(chat.username, text))
+
+    async def get_dialogs(self, max_count: int):
+        count = 0
+        available_chats = []
+        async for dialog in self.telegram_client.iter_dialogs():
+            available_chats.append(dialog)
+            count += 1
+            if count >= max_count:
+                return available_chats
+        return available_chats
+
+    def _get_bot_phrase(self):
+        if self.show_bot_message:
+            return "__Бот:__\n"
+        return ""
