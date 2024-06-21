@@ -2,7 +2,7 @@ from telethon import events, Button, TelegramClient
 from .client import Client
 import re
 
-MAX_SHOW_DIALOGS = 5
+MAX_SHOW_DIALOGS = 1
 MAX_CHECK_CAHTS = 50
 
 PREVIOUS_TEXT = "Прошлые"

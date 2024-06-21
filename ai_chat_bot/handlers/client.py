@@ -3,13 +3,15 @@ import typing
 from telethon import events, TelegramClient
 from telegram import Chat
 
+from ai_chat_bot.handlers.llm_operator import LLMOperator
+
 
 class Client:
-    def __init__(self, telegram_client, telegram_bot, ai_client, show_bot_message):
+    def __init__(self, telegram_client, telegram_bot, llm_operator, show_bot_message):
         self.show_bot_message = show_bot_message
         self.telegram_client: TelegramClient = telegram_client
         self.telegram_bot: TelegramClient = telegram_bot
-        self.ai_client = ai_client
+        self.llm_operator: LLMOperator = llm_operator
         self.working_chats: typing.List[int] = []
         self.chat_history = {}
 
@@ -20,15 +22,11 @@ class Client:
         self.chat_history[chat_id].append({"role": "user",
                                            "content": 'Ответь на сообщение, но не больше 100 слов, однако пиши, много, когда можно ответить кратко:\n' + user_prompt})
 
-        chat_completion = await self.ai_client.chat.completions.create(
-            messages=self.chat_history[chat_id],
-            model="gpt-3.5-turbo",
-        )
+        self.chat_history[chat_id] = self.llm_operator.add_user_message(self.chat_history[chat_id], user_prompt)
+        response = await self.llm_operator.handle_prompt(self.chat_history[chat_id])
+        self.chat_history[chat_id] = self.llm_operator.add_llm_response(self.chat_history[chat_id], response)
 
-        chat_response = chat_completion.choices[0].message.content
-        self.chat_history[chat_id].append({"role": "assistant", "content": chat_response})
-
-        return chat_response
+        return response
 
     def switch_show_bot_text(self, mode: bool):
         self.show_bot_message = mode
