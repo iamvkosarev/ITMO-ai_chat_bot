@@ -1,9 +1,10 @@
-import typing
+from typing import List, Dict
 
 from telethon import events, TelegramClient
 from telegram import Chat
 
-from ai_chat_bot.handlers.llm_operator import LLMOperator
+from ai_chat_bot.model.llm_chat_data import LLMDialog
+from ai_chat_bot.services.llm_operator import LLMOperator
 
 
 class Client:
@@ -12,25 +13,23 @@ class Client:
         self.telegram_client: TelegramClient = telegram_client
         self.telegram_bot: TelegramClient = telegram_bot
         self.llm_operator: LLMOperator = llm_operator
-        self.working_chats: typing.List[int] = []
-        self.chat_history = {}
+        self.working_chats: List[int] = []
+        self.dialogs: Dict[str, LLMDialog] = {}
 
     async def send_to_gpt(self, chat_id, user_prompt) -> str:
-        if chat_id not in self.chat_history:
-            self.chat_history[chat_id] = []
+        if chat_id not in self.dialogs:
+            self.dialogs[chat_id] = LLMDialog()
 
-        self.chat_history[chat_id].append({"role": "user",
-                                           "content": 'Ответь на сообщение, но не больше 100 слов, однако пиши, много, когда можно ответить кратко:\n' + user_prompt})
-
-        self.chat_history[chat_id] = self.llm_operator.add_user_message(self.chat_history[chat_id], user_prompt)
-        response = await self.llm_operator.handle_prompt(self.chat_history[chat_id])
-        self.chat_history[chat_id] = self.llm_operator.add_llm_response(self.chat_history[chat_id], response)
+        self.dialogs[chat_id] = self.llm_operator.add_user_message(self.dialogs[chat_id], user_prompt)
+        response = await self.llm_operator.handle_prompt(self.dialogs[chat_id])
+        self.dialogs[chat_id] = self.llm_operator.add_llm_response(self.dialogs[chat_id], response)
 
         return response
 
     def switch_show_bot_text(self, mode: bool):
         self.show_bot_message = mode
-    async def _client_send_message(self, chat, message):
+
+    async def _client_send_message(self, chat, message: str):
         await self.telegram_client.send_message(chat, message)
 
     def switch_bot(self, mode, id: int):
@@ -69,7 +68,8 @@ class Client:
                     self.working_chats.remove(id)
                 return
             if id in self.working_chats:
-                await self._client_send_message(chat, self._get_bot_phrase() + await self.send_to_gpt(chat.username, text))
+                await self._client_send_message(chat,
+                                                self._get_bot_phrase() + await self.send_to_gpt(chat.username, text))
 
     async def get_dialogs(self, max_count: int):
         count = 0
@@ -81,7 +81,7 @@ class Client:
                 return available_chats
         return available_chats
 
-    def _get_bot_phrase(self):
+    def _get_bot_phrase(self) -> str:
         if self.show_bot_message:
             return "__Бот:__\n"
         return ""

@@ -2,6 +2,8 @@ from telethon import events, Button, TelegramClient
 from .client import Client
 import re
 
+from .llm_operator import LLMOperator
+
 MAX_SHOW_DIALOGS = 1
 MAX_CHECK_CAHTS = 50
 
@@ -19,14 +21,14 @@ red_cross_mark = '❌'
 
 
 class Bot:
-    def __init__(self, telegram_bot, client):
+    def __init__(self, telegram_bot, client, llm_operator):
         self.telegram_bot: TelegramClient = telegram_bot
         self.client: Client = client
+        self.llm_operator: LLMOperator = llm_operator
         self.bot_select_messages = []
         self.dialogs = []
         self.dialogs_active = {}
         self.selected_group = 0
-
 
     def register_handlers(self):
         @self.telegram_bot.on(events.NewMessage(pattern="/bot"))
@@ -41,7 +43,9 @@ class Bot:
             keyboard = [
                 [
                     Button.inline("Настройка бота", "on_set_bot"),
-                    Button.inline(f"Подпись 'бот' ({self.get_sign(self.client.show_bot_message)})", "switch_show_bot_message")
+                    Button.inline(f"Подпись 'бот' ({self.get_sign(self.client.show_bot_message)})",
+                                  "switch_show_bot_message"),
+                    Button.inline(f"LLM {self.llm_operator.current_llm()}", "switch_llm_type")
                 ]
             ]
             message = await self.telegram_bot.send_message(chat, "Действие", buttons=keyboard)
@@ -57,6 +61,10 @@ class Bot:
             self.client.switch_show_bot_text(self.client.show_bot_message == False)
             await load_main_buttons(event)
 
+        @self.telegram_bot.on(events.CallbackQuery(pattern="switch_llm_type"))
+        async def call_handler(event):
+            self.llm_operator.switch_current_llm(self.llm_operator.get_not_using_llm())
+            await load_main_buttons(event)
 
         @self.telegram_bot.on(events.CallbackQuery(pattern=PREVIOUS_PATTERN))
         async def call_handler(event):
@@ -91,8 +99,7 @@ class Bot:
                                                     f"({self.selected_group + 1}/{int(MAX_CHECK_CAHTS / MAX_SHOW_DIALOGS)}) {PHRASE}",
                                                     buttons=keyboard)
 
-
-    async def show_chats(self,event):
+    async def show_chats(self, event):
         chat = await event.get_chat()
         await self.delete_messages(chat)
         count = 0
