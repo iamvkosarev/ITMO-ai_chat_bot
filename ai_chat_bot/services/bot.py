@@ -8,6 +8,7 @@ import re
 
 from .llm_operator import LLMOperator
 from ai_chat_bot.model.dialog_data import DialogData
+from .llm_research_service import LLMResearchService
 
 MAX_SHOW_DIALOGS = 5
 MAX_CHECK_CAHTS = 50
@@ -30,17 +31,18 @@ class ChatAction(Enum):
     CLEAR = 1
 
 
-
-
 class Bot:
-    def __init__(self, telegram_bot, client, llm_operator):
+    def __init__(self, telegram_bot, client: Client, llm_operator: LLMOperator,
+                 llm_research_service: LLMResearchService):
         self.telegram_bot: TelegramClient = telegram_bot
-        self.client: Client = client
-        self.llm_operator: LLMOperator = llm_operator
+        self.llm_research_service = llm_research_service
+        self.client = client
+        self.llm_operator = llm_operator
         self.bot_select_messages = []
         self.dialogs: List[DialogData] = []
         self.dialogs_active = {}
         self.selected_group = 0
+        self.wait_json = False
         self.chat_action: ChatAction = ChatAction.SWITCH_BOT
 
     def register_handlers(self):
@@ -68,7 +70,6 @@ class Bot:
             message = await self.telegram_bot.send_message(chat, "Действие", buttons=keyboard)
             self.bot_select_messages.append(message.id)
 
-
         @self.telegram_bot.on(events.CallbackQuery(pattern="on_set_bot"))
         async def call_handler(event):
             self.selected_group = 0
@@ -81,25 +82,36 @@ class Bot:
             self.chat_action = ChatAction.CLEAR
             await self.show_chats(event)
 
+        @self.telegram_bot.on(events.CallbackQuery(pattern="research"))
+        async def call_handler(event):
+            chat = await event.get_chat()
+            await self.delete_messages(chat)
+            self.wait_json = True
+            message = await self.telegram_bot.send_message(chat,
+                                                           "Ожидание json для анализа...")
+            self.bot_select_messages.append(message.id)
+
         @self.telegram_bot.on(events.NewMessage)
         async def handle_file(event):
-            if event.message.file and event.message.file.mime_type == 'text/csv':
-                await event.reply('Получен CSV файл, приступаю к обработке...')
-                file_path = await self.telegram_bot.download_media(event.message.media)
-                self.process_csv(file_path)
-                await event.reply('Файл успешно обработан!')
-            # elif event.message.file and event.message.file.mime_type == 'application/zip':
-            #     await event.reply('Получен ZIP файл, распаковываю и обрабатываю содержимое...')
-            #     file_path = await self.telegram_bot.download_media(event.message.media)
-            #     with zipfile.ZipFile(file_path, 'r') as zip_ref:
-            #         zip_ref.extractall('extracted_files')
-            #     for root, _, files in os.walk('extracted_files'):
-            #         for file in files:
-            #             if file.endswith('.csv'):
-            #                 process_csv(os.path.join(root, file))
-            #     await event.reply('ZIP файл успешно обработан!')
-            # else:
-            #     await event.reply('Пожалуйста, отправьте CSV или ZIP файл.')
+            if not self.wait_json:
+                return
+            chat = await event.get_chat()
+            await self.delete_messages(chat)
+            if event.message.file:
+                if event.message.file.mime_type in ['application/json', 'text/json']:
+                    self.wait_json = False
+                    await event.reply('Получен JSON файл, приступаю к обработке...')
+                    file_path = await self.telegram_bot.download_media(event.message.media)
+                    result = await self.llm_research_service.process_file(file_path)
+                    await event.reply('Файл успешно обработан!\n' + result)
+                    return
+                message = await self.telegram_bot.send_message(chat,
+                                                               "Некорректный файл или ...")
+                self.bot_select_messages.append(message.id)
+                return
+            message = await self.telegram_bot.send_message(chat, "Ожидание json для анализа...")
+            self.bot_select_messages.append(message.id)
+
         @self.telegram_bot.on(events.CallbackQuery(pattern="switch_show_bot_message"))
         async def call_handler(event):
             self.client.switch_show_bot_text(self.client.show_bot_message == False)
@@ -153,10 +165,6 @@ class Bot:
                                                     f"({self.selected_group + 1}/{int(MAX_CHECK_CAHTS / MAX_SHOW_DIALOGS)}) {PHRASE}",
                                                     buttons=keyboard)
 
-    def process_csv(self, file_path):
-        pass
-        # df = pd.read_csv(file_path)
-        # print(df.head())
 
     async def show_models(self, event):
         chat = await event.get_chat()

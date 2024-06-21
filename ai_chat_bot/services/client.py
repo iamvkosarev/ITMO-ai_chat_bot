@@ -11,12 +11,13 @@ from ai_chat_bot.services.llm_operator import LLMOperator
 
 class Client:
     def __init__(self, telegram_client: TelegramClient, telegram_bot: TelegramClient, llm_operator: LLMOperator,
-                 show_bot_message, dialogs_hide_service: DialogHideService = None):
+                 show_bot_message, prefix: str = "", dialogs_hide_service: DialogHideService = None):
         self.show_bot_message = show_bot_message
         self.dialogs_hide_service = dialogs_hide_service
         self.telegram_client = telegram_client
         self.telegram_bot = telegram_bot
         self.llm_operator = llm_operator
+        self.prefix =prefix
         self.working_chats: List[int] = []
         self.dialogs: Dict[int, LLMDialog] = {}
 
@@ -25,9 +26,8 @@ class Client:
             self.dialogs[id] = LLMDialog()
 
         self.dialogs[id] = self.llm_operator.add_user_message(self.dialogs[id], user_prompt)
-        response = await self.llm_operator.handle_prompt(self.dialogs[id])
+        response = await self.llm_operator.handle_prompt(self.dialogs[id], self.prefix)
         self.dialogs[id] = self.llm_operator.add_llm_response(self.dialogs[id], response)
-
         return response
 
     def get_dialog_messages_count(self, dialog: DialogData) -> int:

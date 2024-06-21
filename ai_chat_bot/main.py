@@ -8,6 +8,7 @@ from ai_chat_bot.services.llm.yandex_gpt import YandexGPT
 from ai_chat_bot.services.llm_operator import LLMOperator
 from ai_chat_bot.services.llm.chat_gpt import ChatGPT
 from ai_chat_bot.services.llm.llm import LLMType
+from ai_chat_bot.services.llm_research_service import LLMResearchService
 from services.bot import Bot
 from services.client import Client
 
@@ -30,7 +31,7 @@ if __name__ == '__main__':
     llm_chat_gpt_4o = ChatGPT(os.getenv(OPENAI_CHAT_GPT_ENV_KEY), "gpt-4o")
     llm_yandex_gpt = YandexGPT(os.getenv(YANDEX_CHAT_GPT_ENV_KEY), "b1gvjdn3rhefcg7rf39i")
 
-    llm_operator = LLMOperator(START_PROMPT_PREFIX)
+    llm_operator = LLMOperator()
     llm_operator.add_llm(LLMWrapper(llm_chat_gpt_3_5_turbo, LLMType.OPEN_AI_CHATGPT_3_5_TURBO, "ChatGPT 3.5 turbo"))
     llm_operator.add_llm(LLMWrapper(llm_chat_gpt_4_turbo, LLMType.OPEN_AI_CHATGPT_4_TURBO, "ChatGPT 4 turbo"))
     llm_operator.add_llm(LLMWrapper(llm_chat_gpt_4o, LLMType.OPEN_AI_CHATGPT_4O, "ChatGPT 4o"))
@@ -39,10 +40,13 @@ if __name__ == '__main__':
     telegram_client.start()
     telegram_bot.start(bot_token=os.getenv(TELEGRAM_ENV_KEY))
 
-    client = Client(telegram_client, telegram_bot, llm_operator, SHOW_BOT_MESSAGE, DialogHideService("394620235"))
+    client = Client(telegram_client, telegram_bot, llm_operator, SHOW_BOT_MESSAGE, START_PROMPT_PREFIX,
+                    DialogHideService("394620235"))
     client.register_handlers()
 
-    bot = Bot(telegram_bot, client, llm_operator)
+    llm_research_service = LLMResearchService(llm_operator)
+
+    bot = Bot(telegram_bot, client, llm_operator, llm_research_service)
     bot.register_handlers()
 
     telegram_bot.run_until_disconnected()
