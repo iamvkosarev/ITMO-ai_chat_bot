@@ -1,30 +1,31 @@
 from typing import List, Dict
 
 from ai_chat_bot.model.llm_chat_data import LLMDialog, LLMMessage, LLMRole
+from ai_chat_bot.model.llm_wrapper import LLMWrapper
 from ai_chat_bot.services.llm.llm import LLM, LLMType
 
 
 class LLMOperator:
     def __init__(self, prompt_prefix):
         self.current_type = None
-        self.llms: Dict[LLMType, LLM] = {}
+        self.llms_wrappers: Dict[LLMType, LLMWrapper] = {}
         self.prompt_prefix: str = prompt_prefix
 
-    def add_llm(self, llm, type: LLMType):
-        assert isinstance(llm, LLM)
-        if type not in self.llms:
-            self.llms[type] = llm
-            if len(self.llms) == 1:
-                self.switch_current_llm(type)
+    def add_llm(self, llm_data: LLMWrapper):
+        assert isinstance(llm_data.llm, LLM)
+        if type not in self.llms_wrappers:
+            self.llms_wrappers[llm_data.type] = llm_data
+            if len(self.llms_wrappers) == 1:
+                self.switch_current_llm(llm_data.type)
 
     def switch_current_llm(self, type: LLMType):
         self.current_type = type
 
     async def handle_prompt(self, chat_history) -> str:
-        assert len(self.llms) > 0
-        llm = self.llms[self.current_type]
+        assert len(self.llms_wrappers) > 0
+        llm_wrapper = self.llms_wrappers[self.current_type]
 
-        return await llm.handle_prompt(chat_history)
+        return await llm_wrapper.llm.handle_prompt(chat_history)
 
     def add_user_message(self, dialog: LLMDialog, user_prompt) -> LLMDialog:
         dialog.add_message(LLMMessage(self.prompt_prefix + user_prompt, LLMRole.USER))
@@ -34,14 +35,8 @@ class LLMOperator:
         dialog.add_message(LLMMessage(response, LLMRole.ASSISTANT))
         return dialog
 
-    def current_llm(self) -> str:
-        if self.current_type == LLMType.YANDEX_CHATGPT:
-            return "Yandex"
-        elif self.current_type == LLMType.OPEN_AI_CHATGPT:
-            return "OpenAI"
-        return "none"
+    def current_llm_name(self) -> str:
+        return self.llms_wrappers[self.current_type].name
 
-    def get_not_using_llm(self) -> LLMType:
-        if self.current_type == LLMType.OPEN_AI_CHATGPT:
-            return LLMType.YANDEX_CHATGPT
-        return LLMType.OPEN_AI_CHATGPT
+    def get_models(self) -> List[LLMWrapper]:
+        return [chat_data for chat_data in self.llms_wrappers.values()]

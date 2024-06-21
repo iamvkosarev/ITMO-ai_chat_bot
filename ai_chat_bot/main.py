@@ -2,9 +2,11 @@ import os
 
 from telethon import TelegramClient
 
-from ai_chat_bot.services.llm.yandex_chatgpt import YandexChatGPT
+from ai_chat_bot.model.llm_wrapper import LLMWrapper
+from ai_chat_bot.services.dialogs_hide_service import DialogHideService
+from ai_chat_bot.services.llm.yandex_gpt import YandexGPT
 from ai_chat_bot.services.llm_operator import LLMOperator
-from ai_chat_bot.services.llm.openai_chatgpt import OpenAIChatGPT
+from ai_chat_bot.services.llm.chat_gpt import ChatGPT
 from ai_chat_bot.services.llm.llm import LLMType
 from services.bot import Bot
 from services.client import Client
@@ -23,17 +25,21 @@ if __name__ == '__main__':
     telegram_client = TelegramClient("my_account", os.getenv(APP_ID_ENV_KEY), os.getenv(APP_HASH_ENV_KEY),
                                      device_model='Python Client Desktop', system_version='Windows 10').start()
 
-    llm_openai_chatgpt = OpenAIChatGPT(os.getenv(OPENAI_CHAT_GPT_ENV_KEY))
-    llm_yandex_chatgpt = YandexChatGPT(os.getenv(YANDEX_CHAT_GPT_ENV_KEY), "b1gvjdn3rhefcg7rf39i")
+    llm_chat_gpt_3_5_turbo = ChatGPT(os.getenv(OPENAI_CHAT_GPT_ENV_KEY), "gpt-3.5-turbo")
+    llm_chat_gpt_4_turbo = ChatGPT(os.getenv(OPENAI_CHAT_GPT_ENV_KEY), "gpt-4-turbo")
+    llm_chat_gpt_4o = ChatGPT(os.getenv(OPENAI_CHAT_GPT_ENV_KEY), "gpt-4o")
+    llm_yandex_gpt = YandexGPT(os.getenv(YANDEX_CHAT_GPT_ENV_KEY), "b1gvjdn3rhefcg7rf39i")
 
     llm_operator = LLMOperator(START_PROMPT_PREFIX)
-    llm_operator.add_llm(llm_openai_chatgpt, LLMType.OPEN_AI_CHATGPT)
-    llm_operator.add_llm(llm_yandex_chatgpt, LLMType.YANDEX_CHATGPT)
+    llm_operator.add_llm(LLMWrapper(llm_chat_gpt_3_5_turbo, LLMType.OPEN_AI_CHATGPT_3_5_TURBO, "ChatGPT 3.5 turbo"))
+    llm_operator.add_llm(LLMWrapper(llm_chat_gpt_4_turbo, LLMType.OPEN_AI_CHATGPT_4_TURBO, "ChatGPT 4 turbo"))
+    llm_operator.add_llm(LLMWrapper(llm_chat_gpt_4o, LLMType.OPEN_AI_CHATGPT_4O, "ChatGPT 4o"))
+    llm_operator.add_llm(LLMWrapper(llm_yandex_gpt, LLMType.YANDEX_CHATGPT, "YandexGPT"))
 
     telegram_client.start()
     telegram_bot.start(bot_token=os.getenv(TELEGRAM_ENV_KEY))
 
-    client = Client(telegram_client, telegram_bot, llm_operator, SHOW_BOT_MESSAGE)
+    client = Client(telegram_client, telegram_bot, llm_operator, SHOW_BOT_MESSAGE, DialogHideService("394620235"))
     client.register_handlers()
 
     bot = Bot(telegram_bot, client, llm_operator)

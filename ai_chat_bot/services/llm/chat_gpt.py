@@ -5,15 +5,16 @@ from ai_chat_bot.model.llm_chat_data import LLMDialog, LLMRole
 from ai_chat_bot.services.llm.llm import LLM
 
 
-class OpenAIChatGPT(LLM):
-    def __init__(self, api_key):
+class ChatGPT(LLM):
+    def __init__(self, api_key, version):
         assert isinstance(api_key, str)
+        self.version: str = version
         self.ai_client: AsyncOpenAI = AsyncOpenAI(api_key=api_key)
 
     async def handle_prompt(self, dialog: LLMDialog) -> str:
         chat_completion = await self.ai_client.chat.completions.create(
             messages=self._get_message_from_dialog(dialog),
-            model="gpt-3.5-turbo",
+            model=self.version,
         )
 
         chat_response = chat_completion.choices[0].message.content

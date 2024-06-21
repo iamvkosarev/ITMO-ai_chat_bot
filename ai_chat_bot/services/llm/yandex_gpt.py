@@ -7,7 +7,7 @@ from ai_chat_bot.model.llm_chat_data import LLMDialog, LLMRole
 from ai_chat_bot.services.llm.llm import LLM
 
 
-class YandexChatGPT(LLM):
+class YandexGPT(LLM):
     def __init__(self, api_key: str, catalog_id : str):
         self.api_key = api_key
         self.catalog_id = catalog_id
